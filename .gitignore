@@ -1,0 +1,17 @@
+*.o
+src/pserver
+src/.*
+autom4te.cache
+./config.h.in
+missing
+Makefile
+Makefile.in
+*.m4
+config.h
+config.h.in
+config.log
+config.status
+configure
+depcomp
+install-sh
+stamp-h1
