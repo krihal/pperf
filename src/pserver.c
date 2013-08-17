@@ -125,15 +125,26 @@ void pserver_loop(struct pserver_config *config)
 		     perror("accept");
 		     exit(-1);
 		}
+		/*Fork out a pserver slave that handles all requests
+		  for this control connection. 
+		  The parent pserver proc continues accepting*/
+		if (fork()) {
+			pr_info("Client connected\n");
+			while (1) {
+			/*TODO: need to a well-defined and generic
+			  interface for the control connection.*/
+			}
+		}
 		/*This is wrong, we should fork() for each control
 		connection (pserver instance), and the client/server
 		negotiates how many threads the test should run*/
+		/*
 		thread = malloc(sizeof(struct pserver_thread));
 		if (!pthread_create(&thread->id, NULL, pserver_threadfunc,
 		    NULL)) {
 			perror("pthread_create");
 			exit(-1);
-		}
+		}*/
 	}
 }
 
