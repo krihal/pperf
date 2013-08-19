@@ -32,8 +32,10 @@ static const char *global_optargs = "DL:p:v";
 
 static int verbosity = 0;
 
+#ifndef pr_info
 #define pr_info(fmt, ...) {if(verbosity >= 1) \
 				printf("info: " fmt, __VA_ARGS__);}
+#endif /* pr_info */
 
 static void create_listen_sa(char *hostname, char *port,
 			     struct pserver_config *cfg)
@@ -129,7 +131,7 @@ void pserver_loop(struct pserver_config *config)
 		  for this control connection. 
 		  The parent pserver proc continues accepting*/
 		if (fork()) {
-			pr_info("Client connected\n");
+			pr_info("%s", "Client connected\n");
 			while (1) {
 			/*TODO: need to a well-defined and generic
 			  interface for the control connection.*/
