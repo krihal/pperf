@@ -11,7 +11,7 @@
  * Swap source and destination ports before returning packet
  */
 
-void udp_swap_ports(udp_hdr *udp)
+__inline__ void udp_swap_ports(udp_hdr *udp)
 {
 	u_int16_t swap;
 
@@ -20,7 +20,7 @@ void udp_swap_ports(udp_hdr *udp)
 	udp->sport = swap;
 }
 
-void tcp_swap_ports(tcp_hdr *tcp)
+__inline__ void tcp_swap_ports(tcp_hdr *tcp)
 {
 	u_int16_t swap;
 
@@ -37,7 +37,7 @@ u_int32_t checksum(unsigned char *buf, unsigned nbytes, u_int32_t sum)
 	int i;
 
 	for (i = 0; i < (nbytes & ~1U); i += 2) {
-		sum += (u_int16_t)ntohs(*((u_int16_t *)(buf + i)));
+	   	sum += (u_int16_t)ntohs(*((u_int16_t *)(buf + i)));
 		if (sum > 0xFFFF)
 			sum -= 0xFFFF;
 	}
