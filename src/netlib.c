@@ -8,7 +8,6 @@ void get_addrinfo_byname(char *hostname, char *port, struct addrinfo **ai)
 	struct addrinfo hints = {0};
 
 	hints.ai_family = AF_UNSPEC;
-	hints.ai_flags = AI_NUMERICHOST;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
 	if ((s = getaddrinfo(hostname, port, &hints, ai)) != 0) {
