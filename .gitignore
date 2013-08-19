@@ -1,5 +1,6 @@
 *.o
 src/pserver
+src/pperf
 src/.*
 autom4te.cache
 ./config.h.in

@@ -8,14 +8,17 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <pthread.h>
+
+#include "netlib.h"
 
 #define PSERVER_DEFAULT_LISTEN_PORT "4999"
 #define PSERVER_DEFAULT_LISTEN_ADDR "::"
 
 struct pserver_config {
-	struct addrinfo ai_listen;
+	struct addrinfo *ai_listen;
 	int sd_listen;
 	int sd_control;
 };
@@ -36,27 +39,6 @@ static int verbosity = 0;
 #define pr_info(fmt, ...) {if(verbosity >= 1) \
 				printf("info: " fmt, __VA_ARGS__);}
 #endif /* pr_info */
-
-static void create_listen_sa(char *hostname, char *port,
-			     struct pserver_config *cfg)
-{
-	int s;
-	struct addrinfo hints = {0};
-	struct addrinfo *ai_listen;
-
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_flags = AI_NUMERICHOST;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-	if ((s = getaddrinfo(hostname, port, &hints, &ai_listen)) != 0) {
-		perror("getaddrinfo");
-		printf("%s", gai_strerror(s));
-		exit(-1);
-	}
-	memcpy(&cfg->ai_listen, ai_listen, sizeof(struct addrinfo));
-	freeaddrinfo(ai_listen);
-
-}
 
 static int scan_options(int argc, char *argv[],
 			struct pserver_config *cfg)
@@ -86,24 +68,25 @@ static int scan_options(int argc, char *argv[],
 		return -EINVAL;
 		}
 	}
-	pr_info("pserver listening on %s port %s\n", hostname, port);
-	create_listen_sa(hostname, port, cfg);
+	get_addrinfo_byname(hostname, port, &cfg->ai_listen);
 	return 0;
 }
 
 int setup_pserver(struct pserver_config *config)
 {
 	const char on = 1;
+	char buf[128];
 
-	config->sd_listen = socket(config->ai_listen.ai_family,
-				 config->ai_listen.ai_socktype,
-				 config->ai_listen.ai_protocol);
+	config->sd_listen = socket(config->ai_listen->ai_family,
+				 config->ai_listen->ai_socktype,
+				 config->ai_listen->ai_protocol);
 	setsockopt(config->sd_listen, SOL_SOCKET, SO_REUSEADDR, &on,
 		   sizeof(on));
-	bind(config->sd_listen, (struct sockaddr*)&config->ai_listen,
-	     config->ai_listen.ai_addrlen);
+	bind(config->sd_listen, (struct sockaddr*)config->ai_listen->ai_addr,
+	     config->ai_listen->ai_addrlen);
 	/*TODO: error checking..*/
 	listen(config->sd_listen, 10);
+	pr_info("Pserver listening on %s\n", print_addrinfo(config->ai_listen, buf, sizeof(buf)));
 	return 0;
 }
 
@@ -116,14 +99,14 @@ void *pserver_threadfunc(void *threadid)
 void pserver_loop(struct pserver_config *config)
 {
 	struct sockaddr_storage ss_peer;
+	struct sockaddr *sa = (struct sockaddr*)&ss_peer;
 	socklen_t ss_len;
-	struct pserver_thread *thread;
+	char buf[128];
 
 	while (1) {
 		ss_len = sizeof(struct sockaddr_storage);
 		memset(&ss_peer, 0, ss_len);
-		if ((config->sd_control = accept(config->sd_listen,
-		    (struct sockaddr*)&ss_peer, &ss_len)) == -1) {
+		if ((config->sd_control = accept(config->sd_listen, sa, &ss_len)) == -1) {
 		     perror("accept");
 		     exit(-1);
 		}
@@ -131,7 +114,7 @@ void pserver_loop(struct pserver_config *config)
 		  for this control connection. 
 		  The parent pserver proc continues accepting*/
 		if (fork()) {
-			pr_info("%s", "Client connected\n");
+			pr_info("Client %s connected\n", print_sockaddr(sa, ss_len, buf, sizeof(buf)));
 			while (1) {
 			/*TODO: need to a well-defined and generic
 			  interface for the control connection.*/
@@ -154,7 +137,7 @@ void pserver_loop(struct pserver_config *config)
 int main(int argc, char *argv[])
 {
 
-	struct pserver_config config = {{0}};
+	struct pserver_config config = {0};
 
 	LIST_INIT(&pserver_threads);
 	if (scan_options(argc, argv, &config))
