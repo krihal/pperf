@@ -10,7 +10,6 @@
 #include <sys/select.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <pthread.h>
 
 #include "netlib.h"
 
@@ -20,13 +19,6 @@
 struct pserver_config {
 	struct addrinfo *ai_listen;
 	int sd_listen;
-	int sd_control;
-};
-
-struct pserver_thread {
-	pthread_t id;
-	int sd_control;
-	LIST_ENTRY(pserver_thread) next;
 };
 
 LIST_HEAD(threads_head, pserver_thread) pserver_threads;
@@ -86,18 +78,27 @@ int setup_pserver(struct pserver_config *config)
 	     config->ai_listen->ai_addrlen);
 	/*TODO: error checking..*/
 	listen(config->sd_listen, 10);
-	pr_info("Pserver listening on %s\n", print_addrinfo(config->ai_listen, buf, sizeof(buf)));
+	pr_info("Pserver listening on %s\n", 
+		print_addrinfo(config->ai_listen, buf, sizeof(buf)));
 	return 0;
 }
 
-void *pserver_threadfunc(void *threadid)
+void process_request(int sd_control)
 {
-	/**/
-	pthread_exit(0);
+	struct pperf_request req = {0};
+
+	if (recv(sd_control, &req, sizeof(req), 0) != sizeof(req))
+	{
+		perror("Failed to read request from client");
+		exit(-1);
+	}
+	printf("pserver received: ether_proto = 0x%x ul_proto = %d test name = %s\n",
+		req.ether_proto, req.ul_proto, req.test_name);
 }
 
 void pserver_loop(struct pserver_config *config)
 {
+	int sd_control;
 	struct sockaddr_storage ss_peer;
 	struct sockaddr *sa = (struct sockaddr*)&ss_peer;
 	socklen_t ss_len;
@@ -106,30 +107,24 @@ void pserver_loop(struct pserver_config *config)
 	while (1) {
 		ss_len = sizeof(struct sockaddr_storage);
 		memset(&ss_peer, 0, ss_len);
-		if ((config->sd_control = accept(config->sd_listen, sa, &ss_len)) == -1) {
+		if ((sd_control = accept(config->sd_listen, sa, &ss_len)) == -1) {
 		     perror("accept");
 		     exit(-1);
 		}
+		pr_info("Client %s connected\n", print_sockaddr(sa, ss_len, buf, sizeof(buf)));
+
 		/*Fork out a pserver slave that handles all requests
 		  for this control connection. 
 		  The parent pserver proc continues accepting*/
 		if (fork()) {
-			pr_info("Client %s connected\n", print_sockaddr(sa, ss_len, buf, sizeof(buf)));
-			while (1) {
+			process_request(sd_control);
 			/*TODO: need to a well-defined and generic
 			  interface for the control connection.*/
-			}
+
+			/*AF/proto specific testcase runs here*/
+
+			exit(0);
 		}
-		/*This is wrong, we should fork() for each control
-		connection (pserver instance), and the client/server
-		negotiates how many threads the test should run*/
-		/*
-		thread = malloc(sizeof(struct pserver_thread));
-		if (!pthread_create(&thread->id, NULL, pserver_threadfunc,
-		    NULL)) {
-			perror("pthread_create");
-			exit(-1);
-		}*/
 	}
 }
 

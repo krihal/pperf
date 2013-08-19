@@ -15,6 +15,7 @@
 
 struct pperf_config {
 	struct addrinfo *ai_peer;
+	int sd_control;
 };
 
 static const char *global_optargs = "H:p:v";
@@ -52,6 +53,21 @@ static int scan_options(int argc, char *argv[], struct pperf_config *cfg)
 	return 0;
 }
 
+void connect_to_pserver(struct pperf_config *cfg)
+{
+	if ((cfg->sd_control = socket(cfg->ai_peer->ai_family,
+				      cfg->ai_peer->ai_socktype,
+				      cfg->ai_peer->ai_protocol)) == -1) {
+		perror("socket");
+		exit(-1);
+	}
+	if (connect(cfg->sd_control, cfg->ai_peer->ai_addr,
+		    cfg->ai_peer->ai_addrlen) != 0) {
+		perror("Could not connect to server");
+		exit(-1);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	struct pperf_config cfg = {0};
@@ -61,6 +77,15 @@ int main(int argc, char *argv[])
 		return -1;
 
 	pr_info("Connect to %s\n", print_addrinfo(cfg.ai_peer, buf, sizeof(buf)));
+	connect_to_pserver(&cfg);
+	/*Debug code, to be removed*/
+	struct pperf_request req = {0};
+
+	req.ether_proto = 0x88CA;
+	req.ul_proto = 0;
+	sprintf(req.test_name, "BANANARAMA!");
+	printf("send crap\n");
+	send(cfg.sd_control, &req, sizeof(req), 0);
 
 	return 0;
 }
