@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
 
 	req.ether_proto = 0x88CA;
 	req.ul_proto = 0;
-	sprintf(req.test_name, "BANANARAMA!");
+
 	printf("send crap\n");
 	send(cfg.sd_control, &req, sizeof(req), 0);
 

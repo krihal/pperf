@@ -1,20 +1,20 @@
 #ifndef _NETLIB_H_
 #define _NETLIB_H_
 
-
+/* This struct is sent from the client to request a new
+ * testcase.
+ */
 struct pperf_request {
 	uint16_t        ether_proto;
 	uint16_t        __PAD;
 	uint32_t        ul_proto;
-	char            test_name[64];
+	char            param[64];
 };
 
-struct pperf_option {
-	uint32_t	type;
-	uint32_t	length;
+/* The response message sent back to the client */
+struct pperf_response {
+	char		param[64];
 };
-
-
 
 struct addrinfo;
 

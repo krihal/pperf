@@ -12,6 +12,8 @@
 #include <netdb.h>
 
 #include "netlib.h"
+#include "tipc.h"
+
 
 #define PSERVER_DEFAULT_LISTEN_PORT "4999"
 #define PSERVER_DEFAULT_LISTEN_ADDR "::"
@@ -21,7 +23,22 @@ struct pserver_config {
 	int sd_listen;
 };
 
-LIST_HEAD(threads_head, pserver_thread) pserver_threads;
+
+/*This struct defines the testcase entry point for a
+ * given ether proto/ulp */
+struct protocol_handler {
+	uint16_t	ether_proto;
+	uint16_t	__PAD;
+	uint32_t	ul_proto;
+	void		(*hdl)(int sd_control, void *param);
+};
+
+/*TODO: make a static array of PH's, or a linked list?*/
+static const struct protocol_handler ph = {
+	.ether_proto	= 0x88CA,
+	.ul_proto	= 0,
+	.hdl		= tipc_proto_handler
+};
 
 static const char *global_optargs = "DL:p:v";
 
@@ -30,6 +47,8 @@ static int verbosity = 0;
 #ifndef pr_info
 #define pr_info(fmt, ...) {if(verbosity >= 1) \
 				printf("info: " fmt, __VA_ARGS__);}
+#define pr_err(fmt, ...) { printf("error: " fmt, __VA_ARGS__);}
+
 #endif /* pr_info */
 
 static int scan_options(int argc, char *argv[],
@@ -66,18 +85,30 @@ static int scan_options(int argc, char *argv[],
 
 int setup_pserver(struct pserver_config *config)
 {
-	const char on = 1;
+	const int on = 1;
 	char buf[128];
 
-	config->sd_listen = socket(config->ai_listen->ai_family,
+	if ((config->sd_listen = socket(config->ai_listen->ai_family,
 				 config->ai_listen->ai_socktype,
-				 config->ai_listen->ai_protocol);
-	setsockopt(config->sd_listen, SOL_SOCKET, SO_REUSEADDR, &on,
-		   sizeof(on));
-	bind(config->sd_listen, (struct sockaddr*)config->ai_listen->ai_addr,
-	     config->ai_listen->ai_addrlen);
-	/*TODO: error checking..*/
-	listen(config->sd_listen, 10);
+				 config->ai_listen->ai_protocol)) == -1) {
+		perror("socket");
+		exit(-1);
+	}
+
+	if (setsockopt(config->sd_listen, SOL_SOCKET, SO_REUSEADDR, &on,
+		   sizeof(on)) != 0) {
+		perror("setsockopt");
+		exit(-1);
+	}
+	if (bind(config->sd_listen, (struct sockaddr*)config->ai_listen->ai_addr,
+	     config->ai_listen->ai_addrlen) != 0) {
+		perror("bind");
+		exit(-1);
+	}
+	if (listen(config->sd_listen, 10) != 0) {
+		perror("listen");
+		exit(-1);
+	}
 	pr_info("Pserver listening on %s\n", 
 		print_addrinfo(config->ai_listen, buf, sizeof(buf)));
 	return 0;
@@ -92,8 +123,22 @@ void process_request(int sd_control)
 		perror("Failed to read request from client");
 		exit(-1);
 	}
-	printf("pserver received: ether_proto = 0x%x ul_proto = %d test name = %s\n",
-		req.ether_proto, req.ul_proto, req.test_name);
+	pr_info("pserver received: ether_proto = 0x%x ul_proto = %d\n",
+		req.ether_proto, req.ul_proto);
+
+	/*TODO: find a registered test module that wants 
+	 * this specific ether proto/ulp. For now, just call
+	 * the tipc one*/
+
+	if ((req.ether_proto == ph.ether_proto) &&
+	    (req.ul_proto == ph.ul_proto)) {
+		ph.hdl(sd_control, (void*)req.param);
+	}
+	else {
+		pr_err("No handler registered for ether proto 0x%x and ulp=%d\n",
+			req.ether_proto, req.ul_proto);
+		exit(-1);
+	}
 }
 
 void pserver_loop(struct pserver_config *config)
@@ -134,7 +179,6 @@ int main(int argc, char *argv[])
 
 	struct pserver_config config = {0};
 
-	LIST_INIT(&pserver_threads);
 	if (scan_options(argc, argv, &config))
 		return -1;
 

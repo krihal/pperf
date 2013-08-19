@@ -3,6 +3,6 @@ AM_LDFLAGS =
 
 bin_PROGRAMS = pserver pperf
 
-pserver_SOURCES = pserver.c netlib.c
+pserver_SOURCES = pserver.c netlib.c tipc.c
 
-pperf_SOURCES = pperf.c netlib.c
+pperf_SOURCES = pperf.c netlib.c tipc.c
