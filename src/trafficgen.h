@@ -92,13 +92,26 @@ struct ip_header_v6 {
 };
 
 /*
+ * Packet control header
+ */
+struct ip_packet_control_header {
+	struct sockaddr_storage dst;
+	char source_ip[IPv6_ADDRESS_SIZE];
+	uint8_t hdr_type;
+	uint8_t ttl;
+	uint8_t tos;
+	uint32_t pps;
+	uint16_t payload_size;
+};
+
+/*
  * Type definitions
  */
+typedef struct ip_packet_control_header ip_packet_control;
 typedef struct udp_header udp_hdr;
 typedef struct tcp_header tcp_hdr;
 typedef struct ip_header_v4 ipv4_hdr;
 typedef struct ip_header_v6 ipv6_hdr;
-
 
 __inline__ void ipv4_swap(ipv4_hdr *ih)
 {	
